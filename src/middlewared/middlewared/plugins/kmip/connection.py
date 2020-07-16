@@ -14,6 +14,8 @@ class KMIPServerMixin:
 
     @contextlib.contextmanager
     def _connection(self, data=None):
+        self.middleware.call_sync('system.advanced.will_perform_network_activity', 'kmip')
+
         data = data or {}
         mapping = {'hostname': 'server', 'port': 'port', 'cert': 'cert', 'key': 'cert_key', 'ca': 'ca'}
         try:

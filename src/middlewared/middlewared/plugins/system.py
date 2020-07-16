@@ -1,6 +1,7 @@
 import asyncio
 from collections import defaultdict
 from datetime import datetime, date, timezone
+import json
 from middlewared.event import EventSource
 from middlewared.i18n import set_language
 from middlewared.logger import CrashReporting
@@ -69,6 +70,7 @@ class SystemAdvancedModel(sa.Model):
     adv_uploadcrash = sa.Column(sa.Boolean(), default=True)
     adv_anonstats = sa.Column(sa.Boolean(), default=True)
     adv_anonstats_token = sa.Column(sa.Text())
+    adv_network_activity = sa.Column(sa.JSON(type=dict))
     adv_motd = sa.Column(sa.Text(), default='Welcome')
     adv_boot_scrub = sa.Column(sa.Integer(), default=7)
     adv_fqdn_syslog = sa.Column(sa.Boolean(), default=False)
@@ -207,6 +209,10 @@ class SystemAdvancedService(ConfigService):
             Bool('traceback'),
             Bool('uploadcrash'),
             Bool('anonstats'),
+            Dict('network_activity',
+                 Str('type', enum=['ALLOW', 'DENY'], required=True),
+                 List('activities', items=[Str('activity')], required=True),
+                 strict=True),
             Str('sed_user', enum=['USER', 'MASTER']),
             Str('sed_passwd', private=True),
             Str('sysloglevel', enum=['F_EMERG', 'F_ALERT', 'F_CRIT', 'F_ERR',
@@ -239,7 +245,11 @@ class SystemAdvancedService(ConfigService):
         if verrors:
             raise verrors
 
-        if len(set(config_data.items()) ^ set(original_data.items())) > 0:
+        def set_(data):
+            data = dict(data, network_activity=json.dumps(data["network_activity"], sort_keys=True))
+            return set(data.items())
+
+        if len(set_(config_data) ^ set_(original_data)) > 0:
             if original_data.get('sed_user'):
                 original_data['sed_user'] = original_data['sed_user'].lower()
             if config_data.get('sed_user'):
@@ -311,6 +321,9 @@ class SystemAdvancedService(ConfigService):
                 original_data['syslog_tls_certificate'] != config_data['syslog_tls_certificate']
             ):
                 await self.middleware.call('service.restart', 'syslogd')
+
+            if original_data['network_activity'] != config_data['network_activity']:
+                await self.middleware.call('zettarepl.update_tasks')
 
             if config_data['sed_passwd'] and original_data['sed_passwd'] != config_data['sed_passwd']:
                 await self.middleware.call('kmip.sync_sed_keys')

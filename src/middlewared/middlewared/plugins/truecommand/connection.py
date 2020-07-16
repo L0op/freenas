@@ -9,6 +9,7 @@ class TruecommandAPIMixin:
     PORTAL_URI = 'https://portal.ixsystems.com/api'
 
     async def _post_call(self, options=None, payload=None):
+        await self.middleware.call('system.advanced.will_perform_network_activity', 'truecommand')
         options = options or {}
         timeout = options.get('timeout', 15)
         response = {'error': None, 'response': {}}
@@ -29,3 +30,7 @@ class TruecommandAPIMixin:
         else:
             response['response'] = await req.json()
         return response
+
+
+async def setup(middleware):
+    await middleware.call('system.advanced.register_network_activity', 'truecommand', 'TrueCommand iX portal')

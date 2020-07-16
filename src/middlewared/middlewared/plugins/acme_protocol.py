@@ -63,6 +63,8 @@ class ACMERegistrationService(CRUDService):
 
     @private
     def get_directory(self, acme_directory_uri):
+        self.middleware.call_sync('system.advanced.will_perform_network_activity', 'acme')
+
         try:
             acme_directory_uri = acme_directory_uri.rstrip('/')
             response = requests.get(acme_directory_uri).json()
@@ -116,6 +118,8 @@ class ACMERegistrationService(CRUDService):
         # 2) REGISTER CLIENT
         # 3) SAVE REGISTRATION OBJECT
         # 4) SAVE REGISTRATION BODY
+
+        self.middleware.call_sync('system.advanced.will_perform_network_activity', 'acme')
 
         verrors = ValidationErrors()
 
@@ -414,6 +418,8 @@ class DNSAuthenticatorService(CRUDService):
 
     @private
     def update_txt_record_route53(self, domain, challenge, key, access_key_id, secret_access_key):
+        self.middleware.call_sync('system.advanced.will_perform_network_activity', 'acme')
+
         session = boto3.Session(
             aws_access_key_id=access_key_id,
             aws_secret_access_key=secret_access_key
@@ -486,3 +492,7 @@ class DNSAuthenticatorService(CRUDService):
         raise CallError(
             f'Timed out waiting for Route53 change. Current status: {resp["ChangeInfo"]["Status"]}'
         )
+
+
+async def setup(middleware):
+    await middleware.call('system.advanced.register_network_activity', 'acme', 'ACME')
